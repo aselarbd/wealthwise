@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Group Settings - WealthWise{% endblock %}
+
+{% block content %}
+<h2>Group Settings: {{ group.name }}</h2>
+
+<div style="margin-bottom: 30px;">
+    <h3>Group Members</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Username</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Role</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Joined</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in group_members %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ member.username }}
+                    {% if member == user %}<strong>(You)</strong>{% endif %}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {% if member.is_admin %}Admin{% else %}Member{% endif %}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ member.date_joined|date:"M d, Y" }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-bottom: 30px;">
+    <h3>Active Invite Links</h3>
+    {% if active_invites %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #f8f9fa;">
+                    <th style="border: 1px solid #ddd; padding: 8px;">Token</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Created By</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Created</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Invite URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invite in active_invites %}
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px; font-family: monospace;">
+                        {{ invite.token }}
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        {{ invite.created_by.username }}
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        {{ invite.created_at|date:"M d, Y H:i" }}
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        <input type="text" 
+                               value="{{ request.scheme }}://{{ request.get_host }}{% url 'register_with_invite' invite.token %}" 
+                               onclick="this.select(); document.execCommand('copy');" 
+                               readonly 
+                               style="width: 100%; padding: 4px;">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No active invite links. Create one below.</p>
+    {% endif %}
+</div>
+
+<div style="margin-bottom: 30px;">
+    <h3>Create New Invite Link</h3>
+    <form method="post" action="{% url 'create_invite_link' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn">Generate New Invite Link</button>
+    </form>
+    <p style="margin-top: 10px; color: #666; font-size: 14px;">
+        <em>Note: Invite links are single-use only. Once someone registers with the link, it becomes inactive.</em>
+    </p>
+</div>
+
+<div style="margin-top: 30px;">
+    <a href="{% url 'dashboard' %}" class="btn">Back to Dashboard</a>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        alert('Invite link copied to clipboard!');
+    });
+}
+</script>
+{% endblock %}

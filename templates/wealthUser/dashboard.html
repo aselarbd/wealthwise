@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - WealthWise{% endblock %}
+
+{% block content %}
+<h2>Dashboard</h2>
+
+<div style="margin-bottom: 30px;">
+    <h3>Welcome, {{ user.username }}!</h3>
+    {% if user.is_superuser %}
+        <p><strong>Role:</strong> Superuser (can see all data)</p>
+    {% elif user.is_admin %}
+        <p><strong>Role:</strong> Admin (can see all data)</p>
+    {% else %}
+        <p><strong>Role:</strong> Regular User</p>
+    {% endif %}
+    
+    {% if user.group %}
+        <p><strong>Group:</strong> {{ user.group.name }}</p>
+    {% else %}
+        <p><strong>Group:</strong> No Group Assigned</p>
+    {% endif %}
+</div>
+
+{% if is_superuser %}
+    <div style="margin-bottom: 30px;">
+        <h3>All Groups (Superuser View)</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #f8f9fa;">
+                    <th style="border: 1px solid #ddd; padding: 8px;">Group Name</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Members</th>
+                    <th style="border: 1px solid #ddd; padding: 8px;">Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for group in all_groups %}
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ group.name }}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                        {% for user in all_users %}
+                            {% if user.group == group %}
+                                {{ user.username }}{% if not forloop.last %}, {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ group.created_at|date:"M d, Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    {% if user.group %}
+        <div style="margin-bottom: 30px;">
+            <h3>Your Group: {{ group.name }}</h3>
+            <h4>Group Members:</h4>
+            <ul>
+                {% for member in group_users %}
+                    <li>
+                        {{ member.username }} 
+                        {% if member.is_admin %}<em>(Admin)</em>{% endif %}
+                        {% if member == user %}<strong>(You)</strong>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+            
+            <div style="margin-top: 20px;">
+                <a href="{% url 'group_settings' %}" class="btn">Group Settings & Invites</a>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+
+<div style="margin-top: 30px;">
+    <h3>Quick Actions</h3>
+    <div style="display: flex; gap: 10px;">
+        {% if user.group %}
+            <form method="post" action="{% url 'create_invite_link' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn">Create Invite Link</button>
+            </form>
+        {% endif %}
+        <a href="{% url 'admin:index' %}" class="btn">Go to Admin Panel</a>
+    </div>
+</div>
+
+<div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
+    <h4>How the System Works:</h4>
+    <ul>
+        <li><strong>Superusers:</strong> Can see and manage all groups and users</li>
+        <li><strong>Regular Users:</strong> Can only see data from their own group</li>
+        <li><strong>New Registration:</strong> Creates a new group automatically</li>
+        <li><strong>Invite Links:</strong> Allow users to join existing groups</li>
+        <li><strong>Group Scoped:</strong> All future resources will be limited to user's group</li>
+    </ul>
+</div>
+{% endblock %}
