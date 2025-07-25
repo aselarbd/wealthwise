@@ -1,0 +1,624 @@
+{
+	"info": {
+		"_postman_id": "12345678-1234-1234-1234-123456789abc",
+		"name": "WealthWise API Collection",
+		"description": "Complete API collection for testing WealthWise NetWorth endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "testuser",
+									"description": "Your username"
+								},
+								{
+									"key": "password",
+									"value": "testpassword",
+									"description": "Your password"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login",
+								""
+							]
+						},
+						"description": "Login to get session cookie for authenticated requests"
+					}
+				},
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "newuser",
+									"description": "Choose a username"
+								},
+								{
+									"key": "email",
+									"value": "newuser@example.com",
+									"description": "Your email"
+								},
+								{
+									"key": "password1",
+									"value": "strongpassword123",
+									"description": "Your password"
+								},
+								{
+									"key": "password2",
+									"value": "strongpassword123",
+									"description": "Confirm password"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register",
+								""
+							]
+						},
+						"description": "Register a new user account"
+					}
+				}
+			],
+			"description": "User authentication endpoints"
+		},
+		{
+			"name": "Net Worth Summary",
+			"item": [
+				{
+					"name": "Get Net Worth Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/summary/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"summary",
+								""
+							]
+						},
+						"description": "Get complete net worth summary including total assets, liabilities, net worth, and assets by category"
+					}
+				}
+			],
+			"description": "Net worth summary and overview"
+		},
+		{
+			"name": "Assets",
+			"item": [
+				{
+					"name": "List All Assets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Get all assets for the current user's group"
+					}
+				},
+				{
+					"name": "Create New Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Primary Residence\",\n    \"value\": \"450000.00\",\n    \"asset_category\": \"REAL_ESTATE\",\n    \"description\": \"Main family home\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Create a new asset. Asset categories: CASH, INVESTMENT, REAL_ESTATE, VEHICLE, PERSONAL, OTHER"
+					}
+				},
+				{
+					"name": "Create Cash Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Savings Account\",\n    \"value\": \"25000.00\",\n    \"asset_category\": \"CASH\",\n    \"description\": \"Emergency fund savings\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Example: Create a cash asset"
+					}
+				},
+				{
+					"name": "Create Investment Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"401k Retirement Fund\",\n    \"value\": \"85000.00\",\n    \"asset_category\": \"INVESTMENT\",\n    \"description\": \"Employer 401k plan\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Example: Create an investment asset"
+					}
+				},
+				{
+					"name": "Get Specific Asset",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/assets/{{asset_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								"{{asset_id}}",
+								""
+							]
+						},
+						"description": "Get details of a specific asset by ID"
+					}
+				},
+				{
+					"name": "Update Asset",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Asset Name\",\n    \"value\": \"475000.00\",\n    \"asset_category\": \"REAL_ESTATE\",\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/{{asset_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								"{{asset_id}}",
+								""
+							]
+						},
+						"description": "Update an existing asset. All fields are optional."
+					}
+				},
+				{
+					"name": "Delete Asset",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/assets/{{asset_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								"{{asset_id}}",
+								""
+							]
+						},
+						"description": "Delete a specific asset"
+					}
+				}
+			],
+			"description": "Asset management endpoints"
+		},
+		{
+			"name": "Liabilities",
+			"item": [
+				{
+					"name": "List All Liabilities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								""
+							]
+						},
+						"description": "Get all liabilities for the current user's group"
+					}
+				},
+				{
+					"name": "Create New Liability",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Mortgage\",\n    \"value\": \"325000.00\",\n    \"description\": \"Home mortgage loan\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								""
+							]
+						},
+						"description": "Create a new liability"
+					}
+				},
+				{
+					"name": "Create Credit Card Debt",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Credit Card Debt\",\n    \"value\": \"5500.00\",\n    \"description\": \"Outstanding credit card balance\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								""
+							]
+						},
+						"description": "Example: Create a credit card liability"
+					}
+				},
+				{
+					"name": "Get Specific Liability",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/{{liability_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								"{{liability_id}}",
+								""
+							]
+						},
+						"description": "Get details of a specific liability by ID"
+					}
+				},
+				{
+					"name": "Update Liability",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Liability Name\",\n    \"value\": \"320000.00\",\n    \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/{{liability_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								"{{liability_id}}",
+								""
+							]
+						},
+						"description": "Update an existing liability. All fields are optional."
+					}
+				},
+				{
+					"name": "Delete Liability",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/networth/liabilities/{{liability_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"liabilities",
+								"{{liability_id}}",
+								""
+							]
+						},
+						"description": "Delete a specific liability"
+					}
+				}
+			],
+			"description": "Liability management endpoints"
+		},
+		{
+			"name": "Error Testing",
+			"item": [
+				{
+					"name": "Invalid Asset Category",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Asset\",\n    \"value\": \"1000.00\",\n    \"asset_category\": \"INVALID_CATEGORY\",\n    \"description\": \"This should fail\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Test invalid asset category validation"
+					}
+				},
+				{
+					"name": "Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Missing name, value, and asset_category\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Test missing required fields validation"
+					}
+				},
+				{
+					"name": "Invalid Value Format",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Asset\",\n    \"value\": \"not_a_number\",\n    \"asset_category\": \"CASH\",\n    \"description\": \"Invalid value format\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Test invalid value format validation"
+					}
+				},
+				{
+					"name": "Negative Value",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Asset\",\n    \"value\": \"-1000.00\",\n    \"asset_category\": \"CASH\",\n    \"description\": \"Negative value should fail\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/networth/assets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"networth",
+								"assets",
+								""
+							]
+						},
+						"description": "Test negative value validation"
+					}
+				}
+			],
+			"description": "Test error scenarios and validation"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"exec": [
+					"// This script runs before each request",
+					"// You can add common setup logic here"
+				],
+				"type": "text/javascript"
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"exec": [
+					"// This script runs after each request",
+					"// You can add common test assertions here",
+					"",
+					"// Check if response is JSON",
+					"pm.test(\"Response is JSON\", function () {",
+					"    pm.response.to.be.json;",
+					"});",
+					"",
+					"// Check response time",
+					"pm.test(\"Response time is less than 2000ms\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+					"});"
+				],
+				"type": "text/javascript"
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"description": "Base URL for the Django development server"
+		},
+		{
+			"key": "asset_id",
+			"value": "1",
+			"description": "ID of an asset for testing detail endpoints"
+		},
+		{
+			"key": "liability_id",
+			"value": "1",
+			"description": "ID of a liability for testing detail endpoints"
+		}
+	]
+}
