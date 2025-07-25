@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator
 from decimal import Decimal
 from typing import Dict, List, Optional, Union, Any
 from wealthUser.models import Group, TimeStampedModel
+from wealthWise.middleware import GroupFilteredManager
 
 
 class NetWorthItem(TimeStampedModel):
@@ -38,6 +39,9 @@ class NetWorthItem(TimeStampedModel):
         help_text="Only applicable for Assets"
     )
     description = models.TextField(blank=True, null=True)
+    
+    # Apply automatic group filtering
+    objects = GroupFilteredManager()
     
     class Meta:
         ordering = ['item_type', 'name']
