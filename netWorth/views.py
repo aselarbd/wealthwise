@@ -54,8 +54,8 @@ class AssetsView(View):
         if not request.user.group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
+        # Group filtering now handled automatically by GroupFilteredManager
         assets = NetWorthItem.objects.filter(
-            group=request.user.group,
             item_type='ASSET'
         )
         
@@ -101,9 +101,8 @@ class AssetsView(View):
         # Get the validated data (including the converted value)
         validated_data = validation_result['data']
         
-        # Create asset
+        # Create asset - group will be automatically set by GroupFilteredManager
         asset = NetWorthItem.objects.create(
-            group=request.user.group,
             name=validated_data['name'],
             value=validated_data['_validated_value'],  # Use the validated Decimal value
             item_type='ASSET',
@@ -127,11 +126,10 @@ class AssetDetailView(View):
     """API endpoint for individual asset operations"""
     
     def get_asset(self, request: HttpRequest, asset_id: int) -> NetWorthItem:
-        """Helper method to get asset with group scope"""
+        """Helper method to get asset with automatic group filtering"""
         return get_object_or_404(
             NetWorthItem,
             id=asset_id,
-            group=request.user.group,
             item_type='ASSET'
         )
     
@@ -202,8 +200,8 @@ class LiabilitiesView(View):
         if not request.user.group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
+        # Group filtering now handled automatically by GroupFilteredManager
         liabilities = NetWorthItem.objects.filter(
-            group=request.user.group,
             item_type='LIABILITY'
         )
         
@@ -247,9 +245,8 @@ class LiabilitiesView(View):
         # Get the validated data
         validated_data = validation_result['data']
         
-        # Create liability
+        # Create liability - group will be automatically set by GroupFilteredManager
         liability = NetWorthItem.objects.create(
-            group=request.user.group,
             name=validated_data['name'],
             value=validated_data['_validated_value'],  # Use validated Decimal value
             item_type='LIABILITY',
@@ -270,11 +267,10 @@ class LiabilityDetailView(View):
     """API endpoint for individual liability operations"""
     
     def get_liability(self, request: HttpRequest, liability_id: int) -> NetWorthItem:
-        """Helper method to get liability with group scope"""
+        """Helper method to get liability with automatic group filtering"""
         return get_object_or_404(
             NetWorthItem,
             id=liability_id,
-            group=request.user.group,
             item_type='LIABILITY'
         )
     
