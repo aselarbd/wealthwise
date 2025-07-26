@@ -18,7 +18,7 @@ from django.db.models.manager import Manager
 from django.db.models.query import QuerySet
 import threading
 from typing import Optional, Any
-from wealthUser.models import Group
+from wealthUser.models import Group, CustomUser
 
 # Thread-local storage for current user context
 _thread_locals = threading.local()
@@ -26,16 +26,22 @@ _thread_locals = threading.local()
 
 class GroupContext:
     """
-    Thread-local context manager for group-based filtering.
+    Enhanced thread-local context manager for group-based filtering and role-based permissions.
     
-    This class maintains the current user's group context across the request lifecycle.
-    It will be extended in Step 2 for role-based permissions.
+    This class maintains the current user's group and permission context across the request lifecycle.
+    Now includes role-based permissions for Step 2 implementation.
     """
     
     @staticmethod
-    def set_current_group(group: Optional[Group]) -> None:
-        """Set the current group for this thread."""
-        _thread_locals.current_group = group
+    def set_current_user(user: Optional[CustomUser]) -> None:
+        """Set the current user and their group for this thread."""
+        _thread_locals.current_user = user
+        _thread_locals.current_group = user.group if user else None
+    
+    @staticmethod
+    def get_current_user() -> Optional[CustomUser]:
+        """Get the current user for this thread."""
+        return getattr(_thread_locals, 'current_user', None)
     
     @staticmethod
     def get_current_group() -> Optional[Group]:
@@ -43,8 +49,22 @@ class GroupContext:
         return getattr(_thread_locals, 'current_group', None)
     
     @staticmethod
+    def has_permission(permission: str) -> bool:
+        """
+        Check if the current user has a specific permission within their group.
+        
+        This method provides easy access to permission checking throughout the application.
+        """
+        current_user = GroupContext.get_current_user()
+        if not current_user:
+            return False
+        return current_user.has_group_permission(permission)
+    
+    @staticmethod
     def clear() -> None:
-        """Clear the current group context."""
+        """Clear the current user and group context."""
+        if hasattr(_thread_locals, 'current_user'):
+            delattr(_thread_locals, 'current_user')
         if hasattr(_thread_locals, 'current_group'):
             delattr(_thread_locals, 'current_group')
 
@@ -80,23 +100,24 @@ class GroupFilteredManager(Manager):
 
 class GroupFilteringMiddleware(MiddlewareMixin):
     """
-    Middleware that automatically filters all database queries by user's group.
+    Enhanced middleware that handles both group filtering and role-based permissions.
     
     This middleware:
-    1. Sets the current user's group in thread-local storage
+    1. Sets the current user and group context in thread-local storage
     2. Ensures all queries are automatically filtered by group
-    3. Provides foundation for Step 2 (role-based permissions)
+    3. Provides role-based permission checking (Step 2)
     4. Prepares for Step 3 (API authentication and filtering)
     
     Process:
-    - process_request: Set group context from authenticated user
-    - process_response: Clear group context to prevent memory leaks
+    - process_request: Set user/group context from authenticated user
+    - process_response: Clear context to prevent memory leaks
     """
     
     def process_request(self, request) -> None:
         """
-        Set the current group context based on the authenticated user.
+        Set the current user and group context based on the authenticated user.
         
+        Enhanced for Step 2 to include role-based permissions.
         For Step 3 (API Development), this will be extended to handle:
         - API token authentication
         - JWT token group extraction
@@ -105,14 +126,13 @@ class GroupFilteringMiddleware(MiddlewareMixin):
         # Clear any existing context
         GroupContext.clear()
         
-        # Set group context for authenticated users
+        # Set user context for authenticated users (includes group and permissions)
         if hasattr(request, 'user') and not isinstance(request.user, AnonymousUser):
-            if hasattr(request.user, 'group') and request.user.group:
-                GroupContext.set_current_group(request.user.group)
+            GroupContext.set_current_user(request.user)
     
     def process_response(self, request, response):
         """
-        Clean up group context to prevent memory leaks.
+        Clean up user and group context to prevent memory leaks.
         
         This is crucial for thread safety in production environments.
         """
