@@ -15,17 +15,35 @@ from .validators import (
     AssetUpdateValidator, 
     LiabilityUpdateValidator
 )
+# Step 2: Enhanced Permissions imports
+from wealthWise.permissions import (
+    PermissionRequiredMixin,
+    method_permission_required,
+    require_group_membership
+)
+from wealthWise.middleware import GroupContext
 
 
 @method_decorator(login_required, name='dispatch')
-class NetWorthSummaryView(View):
-    """API endpoint for net worth summary"""
+class NetWorthSummaryView(PermissionRequiredMixin, View):
+    """
+    API endpoint for net worth summary with role-based permissions.
+    
+    Permissions Required:
+    - GET: 'read' permission (all roles: admin, editor, viewer)
+    """
+    required_permission = 'read'
     
     def get(self, request: HttpRequest) -> JsonResponse:
-        if not request.user.group:
+        """Get net worth summary for user's group"""
+        # Group membership is automatically verified by GroupContext
+        # Permission is automatically verified by PermissionRequiredMixin
+        
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
-        summary = NetWorthSummary(request.user.group)
+        summary = NetWorthSummary(current_group)
         data = summary.get_summary()
         
         # Convert Decimal to string for JSON serialization
@@ -46,12 +64,20 @@ class NetWorthSummaryView(View):
 
 
 @method_decorator(login_required, name='dispatch')
-class AssetsView(View):
-    """API endpoint for asset CRUD operations"""
+class AssetsView(PermissionRequiredMixin, View):
+    """
+    API endpoint for asset CRUD operations with role-based permissions.
     
+    Permissions Required:
+    - GET: 'read' permission (all roles: admin, editor, viewer)
+    - POST: 'create' permission (admin, editor roles only)
+    """
+    
+    @method_permission_required('read')
     def get(self, request: HttpRequest) -> JsonResponse:
         """List all assets for user's group"""
-        if not request.user.group:
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         # Group filtering now handled automatically by GroupFilteredManager
@@ -73,7 +99,7 @@ class AssetsView(View):
             for asset in assets
         ]
         
-        summary = NetWorthSummary(request.user.group)
+        summary = NetWorthSummary(GroupContext.get_current_group())
         
         return JsonResponse({
             'assets': data,
@@ -81,9 +107,11 @@ class AssetsView(View):
             'count': len(data)
         })
     
+    @method_permission_required('create')
     def post(self, request: HttpRequest) -> JsonResponse:
-        """Create a new asset"""
-        if not request.user.group:
+        """Create a new asset - requires 'create' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         try:
@@ -122,8 +150,14 @@ class AssetsView(View):
 
 
 @method_decorator(login_required, name='dispatch')
-class AssetDetailView(View):
-    """API endpoint for individual asset operations"""
+class AssetDetailView(PermissionRequiredMixin, View):
+    """
+    API endpoint for individual asset operations with role-based permissions.
+    
+    Permissions Required:
+    - PUT: 'update' permission (admin, editor roles only)
+    - DELETE: 'delete' permission (admin role only)
+    """
     
     def get_asset(self, request: HttpRequest, asset_id: int) -> NetWorthItem:
         """Helper method to get asset with automatic group filtering"""
@@ -133,9 +167,11 @@ class AssetDetailView(View):
             item_type='ASSET'
         )
     
+    @method_permission_required('update')
     def put(self, request: HttpRequest, asset_id: int) -> JsonResponse:
-        """Update an asset"""
-        if not request.user.group:
+        """Update an asset - requires 'update' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         asset = self.get_asset(request, asset_id)
@@ -180,9 +216,12 @@ class AssetDetailView(View):
             'updated_at': asset.updated_at.isoformat(),
         })
     
+    
+    @method_permission_required('delete')
     def delete(self, request: HttpRequest, asset_id: int) -> JsonResponse:
-        """Delete an asset"""
-        if not request.user.group:
+        """Delete an asset - requires 'delete' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         asset = self.get_asset(request, asset_id)
@@ -192,12 +231,20 @@ class AssetDetailView(View):
 
 
 @method_decorator(login_required, name='dispatch')
-class LiabilitiesView(View):
-    """API endpoint for liability CRUD operations"""
+class LiabilitiesView(PermissionRequiredMixin, View):
+    """
+    API endpoint for liability CRUD operations with role-based permissions.
     
+    Permissions Required:
+    - GET: 'read' permission (all roles: admin, editor, viewer)
+    - POST: 'create' permission (admin, editor roles only)
+    """
+    
+    @method_permission_required('read')
     def get(self, request: HttpRequest) -> JsonResponse:
         """List all liabilities for user's group"""
-        if not request.user.group:
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         # Group filtering now handled automatically by GroupFilteredManager
@@ -217,7 +264,7 @@ class LiabilitiesView(View):
             for liability in liabilities
         ]
         
-        summary = NetWorthSummary(request.user.group)
+        summary = NetWorthSummary(GroupContext.get_current_group())
         
         return JsonResponse({
             'liabilities': data,
@@ -225,9 +272,11 @@ class LiabilitiesView(View):
             'count': len(data)
         })
     
+    @method_permission_required('create')
     def post(self, request: HttpRequest) -> JsonResponse:
-        """Create a new liability"""
-        if not request.user.group:
+        """Create a new liability - requires 'create' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         try:
@@ -263,8 +312,14 @@ class LiabilitiesView(View):
 
 
 @method_decorator(login_required, name='dispatch')
-class LiabilityDetailView(View):
-    """API endpoint for individual liability operations"""
+class LiabilityDetailView(PermissionRequiredMixin, View):
+    """
+    API endpoint for individual liability operations with role-based permissions.
+    
+    Permissions Required:
+    - PUT: 'update' permission (admin, editor roles only)
+    - DELETE: 'delete' permission (admin role only)
+    """
     
     def get_liability(self, request: HttpRequest, liability_id: int) -> NetWorthItem:
         """Helper method to get liability with automatic group filtering"""
@@ -274,9 +329,11 @@ class LiabilityDetailView(View):
             item_type='LIABILITY'
         )
     
+    @method_permission_required('update')
     def put(self, request: HttpRequest, liability_id: int) -> JsonResponse:
-        """Update a liability"""
-        if not request.user.group:
+        """Update a liability - requires 'update' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         liability = self.get_liability(request, liability_id)
@@ -316,9 +373,11 @@ class LiabilityDetailView(View):
             'updated_at': liability.updated_at.isoformat(),
         })
     
+    @method_permission_required('delete')
     def delete(self, request: HttpRequest, liability_id: int) -> JsonResponse:
-        """Delete a liability"""
-        if not request.user.group:
+        """Delete a liability - requires 'delete' permission"""
+        current_group = GroupContext.get_current_group()
+        if not current_group:
             return JsonResponse({'error': 'User must be assigned to a group'}, status=400)
         
         liability = self.get_liability(request, liability_id)
