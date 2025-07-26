@@ -39,6 +39,11 @@ class GroupContext:
         _thread_locals.current_group = user.group if user else None
     
     @staticmethod
+    def set_current_group(group: Optional[Group]) -> None:
+        """Set the current group for this thread (for testing purposes)."""
+        _thread_locals.current_group = group
+    
+    @staticmethod
     def get_current_user() -> Optional[CustomUser]:
         """Get the current user for this thread."""
         return getattr(_thread_locals, 'current_user', None)
