@@ -28,8 +28,9 @@
             "program": "${workspaceFolder}/manage.py",
             "args": [
                 "test",
-                "netWorth.tests.NetWorthModelTests.test_create_asset",
-                "--verbosity=2"
+                "${input:testMethod}",
+                "--verbosity=2",
+                "--keepdb"
             ],
             "django": true,
             "cwd": "${workspaceFolder}",
@@ -93,6 +94,14 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "python": "${workspaceFolder}/.wenv/bin/python"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testMethod",
+            "description": "Enter the test method path (e.g., netWorth.tests.RoleBasedPermissionTests.test_editor_permissions)",
+            "default": "netWorth.tests.",
+            "type": "promptString"
         }
     ]
 }
