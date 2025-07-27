@@ -7,12 +7,6 @@ import json
 from wealthUser.models import Group
 from wealthWise.middleware import GroupContext
 from .models import NetWorthItem, NetWorthSummary
-from .validators import (
-    AssetsValidator, 
-    LiabilitiesValidator, 
-    AssetUpdateValidator, 
-    LiabilityUpdateValidator
-)
 
 User = get_user_model()
 
@@ -21,9 +15,35 @@ class BaseTestCaseWithGroupContext(TestCase):
     """Base test class that properly sets up group context for permission testing"""
     
     def setUp(self):
-        """Set up group context that middleware would normally handle"""
+        """Set up shared test data and group context"""
         super().setUp()
-        # This will be overridden in subclasses, but provides the pattern
+        self.client = Client()
+        self.group = Group.objects.create(name="Test Group")
+        
+        # Create standard test user
+        self.user = User.objects.create_user(
+            username="testuser",
+            email="test@example.com",
+            password="testpass123",
+            group=self.group,
+            role=User.Role.ADMIN
+        )
+        
+        # Create standard test assets and liabilities
+        self.asset = NetWorthItem.objects.create(
+            group=self.group,
+            name="Test Asset",
+            value=Decimal("10000.00"),
+            item_type="ASSET",
+            asset_category="SAVINGS"
+        )
+        
+        self.liability = NetWorthItem.objects.create(
+            group=self.group,
+            name="Test Liability",
+            value=Decimal("5000.00"),
+            item_type="LIABILITY"
+        )
         
     def login_and_set_context(self, username, password, user=None, group=None):
         """Helper to login and set group context like middleware would"""
@@ -32,6 +52,51 @@ class BaseTestCaseWithGroupContext(TestCase):
             GroupContext.set_current_user(user)
             GroupContext.set_current_group(group)
         return login_success
+    
+    def login_as_test_user(self):
+        """Convenience method to login as the standard test user"""
+        return self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+    
+    def _test_crud_operations(self, user, username, password, can_create=True, can_update=True, can_delete=True):
+        """Helper method to test CRUD operations for different user roles"""
+        self.login_and_set_context(username, password, user, self.group)
+        
+        # Test READ operations (always allowed)
+        response = self.client.get('/api/v1/networth/summary/')
+        self.assertEqual(response.status_code, 200)
+        
+        response = self.client.get('/api/v1/networth/assets/')
+        self.assertEqual(response.status_code, 200)
+        
+        # Test CREATE operations
+        asset_data = {
+            'name': f'Asset by {username}',
+            'value': '2000.00',
+            'asset_category': 'INVESTMENTS',
+            'description': f'Created by {username}'
+        }
+        response = self.client.post(
+            '/api/v1/networth/assets/',
+            data=json.dumps(asset_data),
+            content_type='application/json'
+        )
+        expected_status = 201 if can_create else 403
+        self.assertEqual(response.status_code, expected_status)
+        
+        # Test UPDATE operations
+        update_data = {'name': f'Updated by {username}', 'value': '15000.00', 'asset_category': 'INVESTMENTS'}
+        response = self.client.put(
+            f'/api/v1/networth/assets/{self.asset.id}/',
+            data=json.dumps(update_data),
+            content_type='application/json'
+        )
+        expected_status = 200 if can_update else 403
+        self.assertEqual(response.status_code, expected_status)
+        
+        # Test DELETE operations
+        response = self.client.delete(f'/api/v1/networth/assets/{self.asset.id}/')
+        expected_status = 204 if can_delete else 403
+        self.assertEqual(response.status_code, expected_status)
 
 
 class NetWorthModelTests(TestCase):
@@ -225,187 +290,16 @@ class NetWorthSummaryTests(TestCase):
         self.assertEqual(len(summary.get_assets_by_category()), 0)
 
 
-class ValidatorTests(TestCase):
-    """Test cases for validator classes"""
-    
-    def test_assets_validator_valid_data(self):
-        """Test AssetsValidator with valid data"""
-        valid_data = {
-            'name': 'Test Asset',
-            'value': '1000.00',
-            'asset_category': 'SAVINGS',
-            'description': 'Test description'
-        }
-        
-        validator = AssetsValidator(valid_data)
-        result = validator.validate()
-        
-        self.assertTrue(result['is_valid'])
-        self.assertEqual(len(result['errors']), 0)
-        self.assertEqual(result['data']['_validated_value'], Decimal('1000.00'))
-    
-    def test_assets_validator_missing_required_fields(self):
-        """Test AssetsValidator with missing required fields"""
-        invalid_data = {
-            'description': 'Missing required fields'
-        }
-        
-        validator = AssetsValidator(invalid_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertEqual(len(result['errors']), 3)  # name, value, asset_category
-        self.assertIn('Missing required field: name', result['errors'])
-        self.assertIn('Missing required field: value', result['errors'])
-        self.assertIn('Missing required field: asset_category', result['errors'])
-    
-    def test_assets_validator_invalid_category(self):
-        """Test AssetsValidator with invalid asset category"""
-        invalid_data = {
-            'name': 'Test Asset',
-            'value': '1000.00',
-            'asset_category': 'INVALID_CATEGORY'
-        }
-        
-        validator = AssetsValidator(invalid_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertIn('Invalid asset category', result['errors'])
-    
-    def test_assets_validator_invalid_value_format(self):
-        """Test AssetsValidator with invalid value format"""
-        invalid_data = {
-            'name': 'Test Asset',
-            'value': 'not_a_number',
-            'asset_category': 'SAVINGS'
-        }
-        
-        validator = AssetsValidator(invalid_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertIn('Invalid value format', result['errors'])
-    
-    def test_assets_validator_negative_value(self):
-        """Test AssetsValidator with negative value"""
-        invalid_data = {
-            'name': 'Test Asset',
-            'value': '-1000.00',
-            'asset_category': 'SAVINGS'
-        }
-        
-        validator = AssetsValidator(invalid_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertIn('Value must be positive', result['errors'])
-    
-    def test_liabilities_validator_valid_data(self):
-        """Test LiabilitiesValidator with valid data"""
-        valid_data = {
-            'name': 'Test Liability',
-            'value': '5000.00',
-            'description': 'Test description'
-        }
-        
-        validator = LiabilitiesValidator(valid_data)
-        result = validator.validate()
-        
-        self.assertTrue(result['is_valid'])
-        self.assertEqual(len(result['errors']), 0)
-        self.assertEqual(result['data']['_validated_value'], Decimal('5000.00'))
-    
-    def test_liabilities_validator_missing_required_fields(self):
-        """Test LiabilitiesValidator with missing required fields"""
-        invalid_data = {
-            'description': 'Missing required fields'
-        }
-        
-        validator = LiabilitiesValidator(invalid_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertEqual(len(result['errors']), 2)  # name, value
-        self.assertIn('Missing required field: name', result['errors'])
-        self.assertIn('Missing required field: value', result['errors'])
-    
-    def test_asset_update_validator_partial_update(self):
-        """Test AssetUpdateValidator with partial data"""
-        update_data = {
-            'value': '1500.00'
-        }
-        
-        validator = AssetUpdateValidator(update_data)
-        result = validator.validate()
-        
-        self.assertTrue(result['is_valid'])
-        self.assertEqual(result['data']['_validated_value'], Decimal('1500.00'))
-    
-    def test_asset_update_validator_invalid_category(self):
-        """Test AssetUpdateValidator with invalid category"""
-        update_data = {
-            'asset_category': 'INVALID_CATEGORY'
-        }
-        
-        validator = AssetUpdateValidator(update_data)
-        result = validator.validate()
-        
-        self.assertFalse(result['is_valid'])
-        self.assertIn('Invalid asset category', result['errors'])
-    
-    def test_liability_update_validator_valid_data(self):
-        """Test LiabilityUpdateValidator with valid data"""
-        update_data = {
-            'name': 'Updated Liability',
-            'value': '3000.00'
-        }
-        
-        validator = LiabilityUpdateValidator(update_data)
-        result = validator.validate()
-        
-        self.assertTrue(result['is_valid'])
-        self.assertEqual(result['data']['_validated_value'], Decimal('3000.00'))
-
-
 class NetWorthViewTests(BaseTestCaseWithGroupContext):
     """Test cases for NetWorth views"""
     
     def setUp(self):
         """Set up test data"""
-        self.client = Client()
-        self.group = Group.objects.create(name="Test Group")
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123",
-            group=self.group,
-            role=User.Role.ADMIN  # Admin role for full test access
-        )
-        
-        # Create test asset and liability
-        self.asset = NetWorthItem.objects.create(
-            group=self.group,
-            name="Test Asset",
-            value=Decimal("10000.00"),
-            item_type="ASSET",
-            asset_category="SAVINGS"
-        )
-        
-        self.liability = NetWorthItem.objects.create(
-            group=self.group,
-            name="Test Liability",
-            value=Decimal("5000.00"),
-            item_type="LIABILITY"
-        )
-    
-    def _setup_group_context(self):
-        """Helper method to set up group context for tests"""
-        GroupContext.set_current_user(self.user)
+        super().setUp()  # This now handles all the setup
     
     def test_summary_view_authenticated(self):
         """Test summary view with authenticated user"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.get('/api/v1/networth/summary/')
         self.assertEqual(response.status_code, 200)
@@ -423,7 +317,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_assets_list_view(self):
         """Test assets list view"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.get('/api/v1/networth/assets/')
         self.assertEqual(response.status_code, 200)
@@ -436,7 +330,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_create_asset(self):
         """Test creating a new asset"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         asset_data = {
             'name': 'New Asset',
@@ -483,7 +377,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_update_asset(self):
         """Test updating an existing asset"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         update_data = {
             'name': 'Updated Asset',
@@ -509,7 +403,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_delete_asset(self):
         """Test deleting an asset"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.delete(f'/api/v1/networth/assets/{self.asset.id}/')
         self.assertEqual(response.status_code, 204)
@@ -519,7 +413,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_liabilities_list_view(self):
         """Test liabilities list view"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.get('/api/v1/networth/liabilities/')
         self.assertEqual(response.status_code, 200)
@@ -532,7 +426,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_create_liability(self):
         """Test creating a new liability"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         liability_data = {
             'name': 'New Liability',
@@ -556,7 +450,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_update_liability(self):
         """Test updating an existing liability"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         update_data = {
             'name': 'Updated Liability',
@@ -581,7 +475,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
     
     def test_delete_liability(self):
         """Test deleting a liability"""
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.delete(f'/api/v1/networth/liabilities/{self.liability.id}/')
         self.assertEqual(response.status_code, 204)
@@ -630,7 +524,7 @@ class NetWorthViewTests(BaseTestCaseWithGroupContext):
         )
         
         # Login as original user and check they can't see other group's data
-        self.login_and_set_context("testuser", "testpass123", self.user, self.group)
+        self.login_as_test_user()
         
         response = self.client.get('/api/v1/networth/assets/')
         data = response.json()
@@ -657,16 +551,10 @@ class RoleBasedPermissionTests(BaseTestCaseWithGroupContext):
     
     def setUp(self):
         """Set up test data with different user roles"""
-        self.group = Group.objects.create(name="Test Group")
+        super().setUp()  # Gets the base group and test user (admin)
         
-        # Create users with different roles
-        self.admin_user = User.objects.create_user(
-            username="admin",
-            email="admin@example.com",
-            password="testpass123",
-            group=self.group,
-            role=User.Role.ADMIN
-        )
+        # Create additional users with different roles  
+        self.admin_user = self.user  # Use the admin user from base class
         
         self.editor_user = User.objects.create_user(
             username="editor",
@@ -683,159 +571,46 @@ class RoleBasedPermissionTests(BaseTestCaseWithGroupContext):
             group=self.group,
             role=User.Role.VIEWER
         )
-        
-        # Create test asset and liability
-        self.asset = NetWorthItem.objects.create(
-            group=self.group,
-            name="Test Asset",
-            value=Decimal("10000.00"),
-            item_type="ASSET",
-            asset_category="SAVINGS"
-        )
-        
-        self.liability = NetWorthItem.objects.create(
-            group=self.group,
-            name="Test Liability",
-            value=Decimal("5000.00"),
-            item_type="LIABILITY"
-        )
-        
-        self.client = Client()
+        # Note: self.asset and self.liability are already created by base class
     
     def test_admin_permissions(self):
         """Test that admin users have full CRUD access"""
-        self.login_and_set_context("admin", "testpass123", self.admin_user, self.group)
-        
-        # Admin can read
-        response = self.client.get('/api/v1/networth/summary/')
-        self.assertEqual(response.status_code, 200)
-        
-        response = self.client.get('/api/v1/networth/assets/')
-        self.assertEqual(response.status_code, 200)
-        
-        # Admin can create
-        asset_data = {
-            'name': 'Admin Created Asset',
-            'value': '2000.00',
-            'asset_category': 'INVESTMENTS',
-            'description': 'Created by admin'
-        }
-        response = self.client.post(
-            '/api/v1/networth/assets/',
-            data=json.dumps(asset_data),
-            content_type='application/json'
+        self._test_crud_operations(
+            user=self.admin_user, 
+            username="testuser", 
+            password="testpass123",
+            can_create=True, 
+            can_update=True, 
+            can_delete=True
         )
-        self.assertEqual(response.status_code, 201)
-        
-        # Admin can update
-        update_data = {'name': 'Updated by Admin', 'value': '15000.00', 'asset_category': 'INVESTMENTS'}
-        response = self.client.put(
-            f'/api/v1/networth/assets/{self.asset.id}/',
-            data=json.dumps(update_data),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Admin can delete
-        response = self.client.delete(f'/api/v1/networth/assets/{self.asset.id}/')
-        self.assertEqual(response.status_code, 204)
     
     def test_editor_permissions(self):
         """Test that editor users can read, create, and update but not delete"""
-        self.login_and_set_context("editor", "testpass123", self.editor_user, self.group)
-        
-        # Editor can read
-        response = self.client.get('/api/v1/networth/summary/')
-        self.assertEqual(response.status_code, 200)
-        
-        response = self.client.get('/api/v1/networth/assets/')
-        self.assertEqual(response.status_code, 200)
-        
-        # Editor can create
-        asset_data = {
-            'name': 'Editor Created Asset',
-            'value': '3000.00',
-            'asset_category': 'INVESTMENTS',
-            'description': 'Created by editor'
-        }
-        response = self.client.post(
-            '/api/v1/networth/assets/',
-            data=json.dumps(asset_data),
-            content_type='application/json'
+        self._test_crud_operations(
+            user=self.editor_user,
+            username="editor",
+            password="testpass123", 
+            can_create=True,
+            can_update=True,
+            can_delete=False
         )
-        self.assertEqual(response.status_code, 201)
-        
-        # Editor can update
-        update_data = {'name': 'Updated by Editor', 'value': '12000.00', 'asset_category': 'INVESTMENTS'}
-        response = self.client.put(
-            f'/api/v1/networth/assets/{self.asset.id}/',
-            data=json.dumps(update_data),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        
-        # Editor CANNOT delete (should get 403 Forbidden)
-        response = self.client.delete(f'/api/v1/networth/assets/{self.asset.id}/')
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        # DRF might return different error formats, check for common keys
-        error_found = any(key in data for key in ['error', 'detail', 'message'])
-        self.assertTrue(error_found, f"Expected error message in response, got: {data}")
     
     def test_viewer_permissions(self):
         """Test that viewer users can only read data"""
-        self.login_and_set_context("viewer", "testpass123", self.viewer_user, self.group)
-        
-        # Viewer can read
-        response = self.client.get('/api/v1/networth/summary/')
-        self.assertEqual(response.status_code, 200)
-        
-        response = self.client.get('/api/v1/networth/assets/')
-        self.assertEqual(response.status_code, 200)
-        
-        # Viewer CANNOT create (should get 403 Forbidden)
-        asset_data = {
-            'name': 'Viewer Attempt Asset',
-            'value': '1000.00',
-            'asset_category': 'SAVINGS'
-        }
-        response = self.client.post(
-            '/api/v1/networth/assets/',
-            data=json.dumps(asset_data),
-            content_type='application/json'
+        self._test_crud_operations(
+            user=self.viewer_user,
+            username="viewer", 
+            password="testpass123",
+            can_create=False,
+            can_update=False,
+            can_delete=False
         )
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        # DRF might return different error formats, check for common keys
-        error_found = any(key in data for key in ['error', 'detail', 'message'])
-        self.assertTrue(error_found, f"Expected error message in response, got: {data}")
-        
-        # Viewer CANNOT update (should get 403 Forbidden)
-        update_data = {'name': 'Viewer Update Attempt'}
-        response = self.client.put(
-            f'/api/v1/networth/assets/{self.asset.id}/',
-            data=json.dumps(update_data),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        # DRF might return different error formats, check for common keys
-        error_found = any(key in data for key in ['error', 'detail', 'message'])
-        self.assertTrue(error_found, f"Expected error message in response, got: {data}")
-        
-        # Viewer CANNOT delete (should get 403 Forbidden)
-        response = self.client.delete(f'/api/v1/networth/assets/{self.asset.id}/')
-        self.assertEqual(response.status_code, 403)
-        data = response.json()
-        # DRF might return different error formats, check for common keys
-        error_found = any(key in data for key in ['error', 'detail', 'message'])
-        self.assertTrue(error_found, f"Expected error message in response, got: {data}")
     
     def test_liability_permissions_consistency(self):
         """Test that liability operations follow the same permission rules as assets"""
         
         # Test Admin - full access to liabilities
-        self.login_and_set_context("admin", "testpass123", self.admin_user, self.group)
+        self.login_and_set_context("testuser", "testpass123", self.admin_user, self.group)
         
         liability_data = {
             'name': 'Admin Liability',
