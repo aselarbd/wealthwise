@@ -11,12 +11,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
-from decimal import Decimal
 
 from wealthWise.permissions import PermissionRequiredMixin
 from wealthWise.middleware import GroupContext
-from .models import NetWorthItem, NetWorthSummary
+from .models import NetWorthItem
+from .services import NetWorthService
 from .serializers import (
     AssetSerializer, 
     LiabilitySerializer,
@@ -25,64 +24,49 @@ from .serializers import (
 )
 
 
-class NetWorthSummaryAPIView(PermissionRequiredMixin, APIView):
+class BaseNetWorthView(PermissionRequiredMixin, APIView):
     """
-    API endpoint for net worth summary with role-based permissions.
-    
-    Permissions Required:
-    - GET: 'read' permission (all roles: admin, editor, viewer)
+    Base view class for NetWorth API endpoints.
+    Provides common functionality for group validation and service initialization.
     """
-    required_permission = 'read'
     permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        """Get net worth summary for user's group"""
+    
+    def get_current_group(self):
+        """Get current group with validation"""
         current_group = GroupContext.get_current_group()
+        if not current_group:
+            return None
+        return current_group
+    
+    def validate_group_access(self):
+        """Validate group access and return appropriate response if invalid"""
+        current_group = self.get_current_group()
         if not current_group:
             return Response(
                 {'error': 'User must be assigned to a group'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
-
-        summary = NetWorthSummary(current_group)
-        data = summary.get_summary()
-        
-        # Enhance assets_by_category with display names
-        enhanced_categories = []
-        for item in data['assets_by_category']:
-            enhanced_categories.append({
-                'asset_category': item['asset_category'],
-                'asset_category_display': dict(NetWorthItem.ASSET_CATEGORIES).get(
-                    item['asset_category'], item['asset_category']
-                ),
-                'total_value': item['total_value'],
-                'count': item['count']
-            })
-        
-        data['assets_by_category'] = enhanced_categories
-        
-        serializer = NetWorthSummarySerializer(data)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class AssetsAPIView(PermissionRequiredMixin, APIView):
-    """
-    API endpoint for asset CRUD operations with role-based permissions.
+        return None
     
-    Permissions Required:
-    - GET: 'read' permission (all roles: admin, editor, viewer)
-    - POST: 'create' permission (admin, editor roles only)
+    def get_service(self):
+        """Get NetWorthService instance for current group"""
+        current_group = self.get_current_group()
+        return NetWorthService(current_group)
+
+
+class BaseDynamicPermissionView(BaseNetWorthView):
     """
-    permission_classes = [IsAuthenticated]
-
+    Base view class for NetWorth endpoints with dynamic permission checking.
+    Handles permission checking based on HTTP method.
+    """
+    
     def get_permissions_for_method(self, method):
-        """Return required permission for each HTTP method"""
-        permissions = {
-            'GET': 'read',
-            'POST': 'create'
-        }
-        return [permissions.get(method, 'read')]
-
+        """
+        Return required permission for each HTTP method.
+        Override this method in subclasses to define method-specific permissions.
+        """
+        raise NotImplementedError("Subclasses must implement get_permissions_for_method")
+    
     def check_permissions(self, request):
         """Check permissions based on HTTP method"""
         super().check_permissions(request)
@@ -94,53 +78,92 @@ class AssetsAPIView(PermissionRequiredMixin, APIView):
                     message=f"Permission denied. Required permission: {perm}"
                 )
 
+
+class NetWorthSummaryAPIView(BaseNetWorthView):
+    """
+    API endpoint for net worth summary with role-based permissions.
+    
+    Permissions Required:
+    - GET: 'read' permission (all roles: admin, editor, viewer)
+    """
+    required_permission = 'read'
+
+    def get(self, request):
+        """Get net worth summary for user's group"""
+        # Validate group access
+        group_error = self.validate_group_access()
+        if group_error:
+            return group_error
+
+        # Get data from service
+        service = self.get_service()
+        data = service.get_enhanced_summary()
+        
+        serializer = NetWorthSummarySerializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AssetsAPIView(BaseDynamicPermissionView):
+    """
+    API endpoint for asset CRUD operations with role-based permissions.
+    
+    Permissions Required:
+    - GET: 'read' permission (all roles: admin, editor, viewer)
+    - POST: 'create' permission (admin, editor roles only)
+    """
+
+    def get_permissions_for_method(self, method):
+        """Return required permission for each HTTP method"""
+        permissions = {
+            'GET': 'read',
+            'POST': 'create'
+        }
+        return [permissions.get(method, 'read')]
+
     def get(self, request):
         """List all assets for user's group with pagination"""
-        current_group = GroupContext.get_current_group()
-        if not current_group:
-            return Response(
-                {'error': 'User must be assigned to a group'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Validate group access
+        group_error = self.validate_group_access()
+        if group_error:
+            return group_error
 
-        # Get assets with automatic group filtering
-        assets = NetWorthItem.objects.filter(item_type='ASSET').order_by('-created_at')
-        
-        # Implement pagination
+        # Extract pagination parameters
         page_size = int(request.GET.get('page_size', 20))
         page = int(request.GET.get('page', 1))
         
-        paginator = Paginator(assets, page_size)
-        page_obj = paginator.get_page(page)
+        # Get paginated data from service
+        service = self.get_service()
+        paginated_data = service.get_paginated_assets(page, page_size)
         
-        # Serialize the data
-        serializer = AssetSerializer(page_obj.object_list, many=True)
+        # Serialize the results
+        serializer = AssetSerializer(paginated_data['results'], many=True)
         
-        # Build paginated response
+        # Build response with pagination URLs
         response_data = {
-            'count': paginator.count,
+            'count': paginated_data['count'],
             'next': None,
             'previous': None,
             'assets': serializer.data
         }
         
-        if page_obj.has_next():
-            response_data['next'] = f"?page={page_obj.next_page_number()}&page_size={page_size}"
+        if paginated_data['next']:
+            response_data['next'] = f"?page={paginated_data['next']}&page_size={page_size}"
         
-        if page_obj.has_previous():
-            response_data['previous'] = f"?page={page_obj.previous_page_number()}&page_size={page_size}"
+        if paginated_data['previous']:
+            response_data['previous'] = f"?page={paginated_data['previous']}&page_size={page_size}"
         
         return Response(response_data, status=status.HTTP_200_OK)
 
     def post(self, request):
         """Create a new asset - requires 'create' permission"""
-        current_group = GroupContext.get_current_group()
-        if not current_group:
-            return Response(
-                {'error': 'User must be assigned to a group'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Validate group access
+        group_error = self.validate_group_access()
+        if group_error:
+            return group_error
 
+        # Get current group for saving
+        current_group = self.get_current_group()
+        
         serializer = AssetSerializer(data=request.data)
         if serializer.is_valid():
             # Save with automatic group assignment
@@ -150,7 +173,7 @@ class AssetsAPIView(PermissionRequiredMixin, APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class AssetDetailAPIView(PermissionRequiredMixin, APIView):
+class AssetDetailAPIView(BaseDynamicPermissionView):
     """
     API endpoint for individual asset operations with role-based permissions.
     
@@ -159,7 +182,6 @@ class AssetDetailAPIView(PermissionRequiredMixin, APIView):
     - PUT: 'update' permission (admin, editor roles only)
     - DELETE: 'delete' permission (admin role only)
     """
-    permission_classes = [IsAuthenticated]
 
     def get_permissions_for_method(self, method):
         """Return required permission for each HTTP method"""
@@ -170,18 +192,6 @@ class AssetDetailAPIView(PermissionRequiredMixin, APIView):
             'DELETE': 'delete'
         }
         return [permissions.get(method, 'read')]
-
-    def check_permissions(self, request):
-        """Check permissions based on HTTP method"""
-        super().check_permissions(request)
-        required_perms = self.get_permissions_for_method(request.method)
-        for perm in required_perms:
-            if not GroupContext.has_permission(perm):
-                self.permission_denied(
-                    request, 
-                    message=f"Permission denied. Required permission: {perm}",
-                    code=status.HTTP_403_FORBIDDEN
-                )
 
     def get_object(self, asset_id):
         """Helper method to get asset with automatic group filtering"""
@@ -219,7 +229,7 @@ class AssetDetailAPIView(PermissionRequiredMixin, APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class LiabilitiesAPIView(PermissionRequiredMixin, APIView):
+class LiabilitiesAPIView(BaseDynamicPermissionView):
     """
     API endpoint for liability CRUD operations with role-based permissions.
     
@@ -227,7 +237,6 @@ class LiabilitiesAPIView(PermissionRequiredMixin, APIView):
     - GET: 'read' permission (all roles: admin, editor, viewer)
     - POST: 'create' permission (admin, editor roles only)
     """
-    permission_classes = [IsAuthenticated]
 
     def get_permissions_for_method(self, method):
         """Return required permission for each HTTP method"""
@@ -237,64 +246,50 @@ class LiabilitiesAPIView(PermissionRequiredMixin, APIView):
         }
         return [permissions.get(method, 'read')]
 
-    def check_permissions(self, request):
-        """Check permissions based on HTTP method"""
-        super().check_permissions(request)
-        required_perms = self.get_permissions_for_method(request.method)
-        for perm in required_perms:
-            if not GroupContext.has_permission(perm):
-                self.permission_denied(
-                    request, 
-                    message=f"Permission denied. Required permission: {perm}"
-                )
-
     def get(self, request):
         """List all liabilities for user's group with pagination"""
-        current_group = GroupContext.get_current_group()
-        if not current_group:
-            return Response(
-                {'error': 'User must be assigned to a group'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Validate group access
+        group_error = self.validate_group_access()
+        if group_error:
+            return group_error
 
-        # Get liabilities with automatic group filtering
-        liabilities = NetWorthItem.objects.filter(item_type='LIABILITY').order_by('-created_at')
-        
-        # Implement pagination
+        # Extract pagination parameters
         page_size = int(request.GET.get('page_size', 20))
         page = int(request.GET.get('page', 1))
         
-        paginator = Paginator(liabilities, page_size)
-        page_obj = paginator.get_page(page)
+        # Get paginated data from service
+        service = self.get_service()
+        paginated_data = service.get_paginated_liabilities(page, page_size)
         
-        # Serialize the data
-        serializer = LiabilitySerializer(page_obj.object_list, many=True)
+        # Serialize the results
+        serializer = LiabilitySerializer(paginated_data['results'], many=True)
         
-        # Build paginated response
+        # Build response with pagination URLs
         response_data = {
-            'count': paginator.count,
+            'count': paginated_data['count'],
             'next': None,
             'previous': None,
             'liabilities': serializer.data
         }
         
-        if page_obj.has_next():
-            response_data['next'] = f"?page={page_obj.next_page_number()}&page_size={page_size}"
+        if paginated_data['next']:
+            response_data['next'] = f"?page={paginated_data['next']}&page_size={page_size}"
         
-        if page_obj.has_previous():
-            response_data['previous'] = f"?page={page_obj.previous_page_number()}&page_size={page_size}"
+        if paginated_data['previous']:
+            response_data['previous'] = f"?page={paginated_data['previous']}&page_size={page_size}"
         
         return Response(response_data, status=status.HTTP_200_OK)
 
     def post(self, request):
         """Create a new liability - requires 'create' permission"""
-        current_group = GroupContext.get_current_group()
-        if not current_group:
-            return Response(
-                {'error': 'User must be assigned to a group'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Validate group access
+        group_error = self.validate_group_access()
+        if group_error:
+            return group_error
 
+        # Get current group for saving
+        current_group = self.get_current_group()
+        
         serializer = LiabilitySerializer(data=request.data)
         if serializer.is_valid():
             # Save with automatic group assignment
@@ -304,7 +299,7 @@ class LiabilitiesAPIView(PermissionRequiredMixin, APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LiabilityDetailAPIView(PermissionRequiredMixin, APIView):
+class LiabilityDetailAPIView(BaseDynamicPermissionView):
     """
     API endpoint for individual liability operations with role-based permissions.
     
@@ -313,7 +308,6 @@ class LiabilityDetailAPIView(PermissionRequiredMixin, APIView):
     - PUT: 'update' permission (admin, editor roles only)
     - DELETE: 'delete' permission (admin role only)
     """
-    permission_classes = [IsAuthenticated]
 
     def get_permissions_for_method(self, method):
         """Return required permission for each HTTP method"""
@@ -324,18 +318,6 @@ class LiabilityDetailAPIView(PermissionRequiredMixin, APIView):
             'DELETE': 'delete'
         }
         return [permissions.get(method, 'read')]
-
-    def check_permissions(self, request):
-        """Check permissions based on HTTP method"""
-        super().check_permissions(request)
-        required_perms = self.get_permissions_for_method(request.method)
-        for perm in required_perms:
-            if not GroupContext.has_permission(perm):
-                self.permission_denied(
-                    request, 
-                    message=f"Permission denied. Required permission: {perm}",
-                    code=status.HTTP_403_FORBIDDEN
-                )
 
     def get_object(self, liability_id):
         """Helper method to get liability with automatic group filtering"""
