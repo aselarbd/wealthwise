@@ -5,13 +5,13 @@ app_name = 'networth'
 
 urlpatterns = [
     # Summary endpoints
-    path('api/v1/networth/summary/', views.NetWorthSummaryAPIView.as_view(), name='summary'),
+    path(app_name + '/summary/', views.NetWorthSummaryAPIView.as_view(), name='summary'),
     
     # Asset endpoints
-    path('api/v1/networth/assets/', views.AssetsAPIView.as_view(), name='assets'),
-    path('api/v1/networth/assets/<int:asset_id>/', views.AssetDetailAPIView.as_view(), name='asset_detail'),
+    path(app_name + '/assets/', views.AssetsAPIView.as_view(), name='assets'),
+    path(app_name + '/assets/<int:asset_id>/', views.AssetDetailAPIView.as_view(), name='asset_detail'),
     
     # Liability endpoints
-    path('api/v1/networth/liabilities/', views.LiabilitiesAPIView.as_view(), name='liabilities'),
-    path('api/v1/networth/liabilities/<int:liability_id>/', views.LiabilityDetailAPIView.as_view(), name='liability_detail'),
+    path(app_name + '/liabilities/', views.LiabilitiesAPIView.as_view(), name='liabilities'),
+    path(app_name + '/liabilities/<int:liability_id>/', views.LiabilityDetailAPIView.as_view(), name='liability_detail'),
 ]

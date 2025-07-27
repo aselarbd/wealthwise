@@ -6,7 +6,8 @@ import json
 
 from wealthUser.models import Group
 from wealthWise.middleware import GroupContext
-from .models import NetWorthItem, NetWorthSummary
+from .models import NetWorthItem
+from .services import NetWorthService
 
 User = get_user_model()
 
@@ -177,7 +178,7 @@ class NetWorthModelTests(TestCase):
 
 
 class NetWorthSummaryTests(TestCase):
-    """Test cases for NetWorthSummary helper class"""
+    """Test cases for NetWorthService class"""
     
     def setUp(self):
         """Set up test data"""
@@ -229,28 +230,28 @@ class NetWorthSummaryTests(TestCase):
     
     def test_get_total_assets(self):
         """Test total assets calculation"""
-        summary = NetWorthSummary(self.group)
+        summary = NetWorthService(self.group)
         total_assets = summary.get_total_assets()
         expected_total = Decimal("335000.00")  # 10000 + 25000 + 300000
         self.assertEqual(total_assets, expected_total)
     
     def test_get_total_liabilities(self):
         """Test total liabilities calculation"""
-        summary = NetWorthSummary(self.group)
+        summary = NetWorthService(self.group)
         total_liabilities = summary.get_total_liabilities()
         expected_total = Decimal("205000.00")  # 200000 + 5000
         self.assertEqual(total_liabilities, expected_total)
     
     def test_get_net_worth(self):
         """Test net worth calculation"""
-        summary = NetWorthSummary(self.group)
+        summary = NetWorthService(self.group)
         net_worth = summary.get_net_worth()
         expected_net_worth = Decimal("130000.00")  # 335000 - 205000
         self.assertEqual(net_worth, expected_net_worth)
     
     def test_get_assets_by_category(self):
         """Test assets by category breakdown"""
-        summary = NetWorthSummary(self.group)
+        summary = NetWorthService(self.group)
         assets_by_category = summary.get_assets_by_category()
         
         # Should have 3 categories
@@ -271,7 +272,7 @@ class NetWorthSummaryTests(TestCase):
     
     def test_get_summary(self):
         """Test complete summary data"""
-        summary = NetWorthSummary(self.group)
+        summary = NetWorthService(self.group)
         summary_data = summary.get_summary()
         
         self.assertEqual(summary_data['total_assets'], Decimal("335000.00"))
@@ -282,11 +283,32 @@ class NetWorthSummaryTests(TestCase):
     def test_empty_group_summary(self):
         """Test summary for group with no assets/liabilities"""
         empty_group = Group.objects.create(name="Empty Group")
-        summary = NetWorthSummary(empty_group)
+        summary = NetWorthService(empty_group)
         
         self.assertEqual(summary.get_total_assets(), Decimal("0.00"))
         self.assertEqual(summary.get_total_liabilities(), Decimal("0.00"))
         self.assertEqual(summary.get_net_worth(), Decimal("0.00"))
+        
+    def test_financial_ratios(self):
+        """Test financial ratios calculation"""
+        summary = NetWorthService(self.group)
+        ratios = summary.get_financial_ratios()
+        
+        # Expected: 205000 / 335000 * 100 = ~61.19%
+        expected_ratio = Decimal("61.19")
+        self.assertEqual(ratios['debt_to_asset_ratio'], expected_ratio)
+        self.assertEqual(ratios['financial_health_status'], "Fair")
+        self.assertEqual(ratios['net_worth'], Decimal("130000.00"))
+        
+    def test_financial_ratios_no_assets(self):
+        """Test financial ratios with no assets"""
+        empty_group = Group.objects.create(name="Empty Group")
+        summary = NetWorthService(empty_group)
+        ratios = summary.get_financial_ratios()
+        
+        self.assertEqual(ratios['debt_to_asset_ratio'], Decimal("0.00"))
+        self.assertEqual(ratios['financial_health_status'], "No Assets")
+        self.assertEqual(ratios['net_worth'], Decimal("0.00"))
         self.assertEqual(len(summary.get_assets_by_category()), 0)
 
 
