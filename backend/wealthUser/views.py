@@ -60,7 +60,7 @@ def register_view(request, invite_token=None):
         'group_to_join': group_to_join,
         'invite_token': invite_token
     }
-    return render(request, 'registration/register.html', context)
+    return render(request, 'registration/../templates/registration/register.html', context)
 
 @login_required
 def dashboard_view(request):
@@ -90,7 +90,7 @@ def dashboard_view(request):
             'is_superuser': False
         }
     
-    return render(request, 'wealthUser/dashboard.html', context)
+    return render(request, 'wealthUser/../templates/wealthUser/dashboard.html', context)
 
 @login_required
 def create_invite_link(request):
@@ -143,4 +143,4 @@ def group_settings_view(request):
         'active_invites': active_invites,
     }
     
-    return render(request, 'wealthUser/group_settings.html', context)
+    return render(request, 'wealthUser/../templates/wealthUser/group_settings.html', context)
