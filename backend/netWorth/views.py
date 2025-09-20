@@ -19,8 +19,7 @@ from .services import NetWorthService
 from .serializers import (
     AssetSerializer, 
     LiabilitySerializer,
-    NetWorthSummarySerializer,
-    AssetCategorySerializer
+    NetWorthSummarySerializer
 )
 
 
